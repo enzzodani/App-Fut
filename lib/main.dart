@@ -42,7 +42,7 @@ class _HomePageState extends State<HomePage> {
       'title': 'Fut INF',
       'date': '14 Fev, 2026',
       'status': 'Em Andamento',
-      'jogadores': 5, 
+      'jogadores': 4, 
       'duration': 8, 
     },
   ];
@@ -167,7 +167,7 @@ class _HomePageState extends State<HomePage> {
                         'title': nameController.text.trim(),
                         'date': dateController.text.trim(),
                         'status': isEditing ? tournament!['status'] : 'Em Andamento',
-                        'jogadores': int.tryParse(playersController.text) ?? 5,
+                        'jogadores': int.tryParse(playersController.text) ?? 4,
                         'duration': int.tryParse(timeController.text) ?? 8,
                       };
 
@@ -278,7 +278,8 @@ class _HomePageState extends State<HomePage> {
                           MaterialPageRoute(
                             builder: (context) => TournamentScreen( // Or TournamentScreen
                               tournamentName: item['title'],
-                              tournamentId: item['id'], // --- NEW: Pass the ID ---
+                              tournamentId: item['id'],
+                              totalPlayers: item['jogadores'], // Pass the number of players to the tournament screen
                             ),
                           ),
                         );

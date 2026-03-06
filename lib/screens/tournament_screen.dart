@@ -8,11 +8,13 @@ import 'package:app_do_fut/screens/blank_screen.dart'; // Import your BlankScree
 class TournamentScreen extends StatelessWidget {
   final String tournamentName;
   final String tournamentId;
+  final int totalPlayers;
 
   const TournamentScreen({
     super.key,
     required this.tournamentId,
     required this.tournamentName,
+    required this.totalPlayers,
   });
 
   @override
@@ -92,8 +94,11 @@ class TournamentScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (c) =>
-                            MatchScreen(tournamentName: tournamentName, tournamentId: tournamentId,),
+                        builder: (c) => MatchScreen(
+                          tournamentName: tournamentName,
+                          tournamentId: tournamentId,
+                          totalPlayers: totalPlayers,
+                        ),
                       ),
                     );
                   }
@@ -101,7 +106,10 @@ class TournamentScreen extends StatelessWidget {
                   else if (item['title'] == 'Estatísticas') {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (c) => const HistoryScreen()),
+                      MaterialPageRoute(
+                        builder: (c) =>
+                            HistoryScreen(tournamentId: tournamentId),
+                      ),
                     );
                   } else {
                     Navigator.push(

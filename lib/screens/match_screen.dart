@@ -16,8 +16,14 @@ import '../widgets/match/waitlist_card.dart';
 class MatchScreen extends StatefulWidget {
   final String tournamentName;
   final String tournamentId;
+  final int totalPlayers;
 
-  const MatchScreen({super.key, required this.tournamentId, required this.tournamentName});
+  const MatchScreen({
+    super.key,
+    required this.tournamentName,
+    required this.tournamentId,
+    required this.totalPlayers,
+  });
 
   @override
   State<MatchScreen> createState() => _MatchScreenState();
@@ -32,14 +38,13 @@ class _MatchScreenState extends State<MatchScreen>
   List<Map<String, dynamic>> allSavedPlayers = [];
   List<Map<String, dynamic>> presentPlayers = [];
 
-  // Teams (Now 4 players max)
+  // Teams (X players max, NO fixed goalkeepers)
   List<Map<String, dynamic>> teamRed = [];
   List<Map<String, dynamic>> teamWhite = [];
 
   // Match State
   int scoreRed = 0;
   int scoreWhite = 0;
-  int totalPlayers = 4;
   bool isMatchRunning = false;
   bool isOvertime = false;
   Timer? _matchTimer;
@@ -48,9 +53,7 @@ class _MatchScreenState extends State<MatchScreen>
   int _secondsPlayedBeforePause = 0;
   DateTime? _lastStartTime;
 
-  // Getter to calculate total time live
   int get totalSecondsElapsed {
-    // FIX: If the match is not running, strictly return the paused time.
     if (!isMatchRunning || _lastStartTime == null) {
       return _secondsPlayedBeforePause;
     }
@@ -79,9 +82,9 @@ class _MatchScreenState extends State<MatchScreen>
     super.dispose();
   }
 
-  // --- GETTERS ---
   bool get _isReadyToStart {
-    return teamRed.length == totalPlayers && teamWhite.length == totalPlayers;
+    return teamRed.length == widget.totalPlayers &&
+        teamWhite.length == widget.totalPlayers;
   }
 
   String _formatTime(int totalSeconds) {
@@ -90,11 +93,23 @@ class _MatchScreenState extends State<MatchScreen>
     return "${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}";
   }
 
+  double _calculateTeamRating(List<Map<String, dynamic>> team) {
+    if (team.isEmpty) return 0.0;
+    double totalStars = 0.0;
+    for (var player in team) {
+      double rating = player['rating'] != null
+          ? (player['rating'] as num).toDouble()
+          : 0.0;
+      totalStars += rating;
+    }
+    return totalStars / team.length;
+  }
+
   // --- PERSISTENCE ---
 
   Future<void> _saveMatchState() async {
     final prefs = await SharedPreferences.getInstance();
-    final String id = widget.tournamentId; // Helper variable
+    final String id = widget.tournamentId;
 
     await prefs.setString('present_players_$id', jsonEncode(presentPlayers));
     await prefs.setString('team_red_$id', jsonEncode(teamRed));
@@ -116,22 +131,32 @@ class _MatchScreenState extends State<MatchScreen>
     }
   }
 
-Future<void> _loadMatchState() async {
+  Future<void> _loadMatchState() async {
     final prefs = await SharedPreferences.getInstance();
     final String id = widget.tournamentId;
 
-    // GLOBAL DATABASE (No ID attached)
     final String? dbData = prefs.getString('players_key');
     if (dbData != null) {
       allSavedPlayers = List<Map<String, dynamic>>.from(jsonDecode(dbData));
     }
 
     setState(() {
-      // TOURNAMENT SPECIFIC DATA (ID Attached)
-      if (prefs.containsKey('present_players_$id')) presentPlayers = List<Map<String, dynamic>>.from(jsonDecode(prefs.getString('present_players_$id')!));
-      if (prefs.containsKey('team_red_$id')) teamRed = List<Map<String, dynamic>>.from(jsonDecode(prefs.getString('team_red_$id')!));
-      if (prefs.containsKey('team_white_$id')) teamWhite = List<Map<String, dynamic>>.from(jsonDecode(prefs.getString('team_white_$id')!));
-      if (prefs.containsKey('match_events_$id')) matchEvents = List<Map<String, dynamic>>.from(jsonDecode(prefs.getString('match_events_$id')!));
+      if (prefs.containsKey('present_players_$id'))
+        presentPlayers = List<Map<String, dynamic>>.from(
+          jsonDecode(prefs.getString('present_players_$id')!),
+        );
+      if (prefs.containsKey('team_red_$id'))
+        teamRed = List<Map<String, dynamic>>.from(
+          jsonDecode(prefs.getString('team_red_$id')!),
+        );
+      if (prefs.containsKey('team_white_$id'))
+        teamWhite = List<Map<String, dynamic>>.from(
+          jsonDecode(prefs.getString('team_white_$id')!),
+        );
+      if (prefs.containsKey('match_events_$id'))
+        matchEvents = List<Map<String, dynamic>>.from(
+          jsonDecode(prefs.getString('match_events_$id')!),
+        );
 
       scoreRed = prefs.getInt('score_red_$id') ?? 0;
       scoreWhite = prefs.getInt('score_white_$id') ?? 0;
@@ -147,13 +172,16 @@ Future<void> _loadMatchState() async {
           setState(() {
             if (totalSecondsElapsed >= 480 && !isOvertime) {
               isOvertime = true;
-              try { _audioPlayer.play(AssetSource('audio/end.mp3')); } catch (e) {}
+              try {
+                _audioPlayer.play(AssetSource('audio/end.mp3'));
+              } catch (e) {}
             }
           });
         });
       }
     });
   }
+
   // --- MATCH LOGIC ---
 
   void _startMatch() async {
@@ -165,7 +193,11 @@ Future<void> _loadMatchState() async {
     });
 
     try {
-      await _audioPlayer.play(AssetSource('audio/start.mp3'));
+      if (totalSecondsElapsed == 0) {
+        await _audioPlayer.play(AssetSource('audio/start.mp3'));
+      } else {
+        await _audioPlayer.play(AssetSource('audio/start.mp3'));
+      }
     } catch (e) {
       debugPrint("Audio error: $e");
     }
@@ -203,7 +235,10 @@ Future<void> _loadMatchState() async {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.headerBlue,
-        title: Text("Atenção", style: TextStyle(color: AppColors.textWhite)),
+        title: const Text(
+          "Atenção",
+          style: TextStyle(color: AppColors.textWhite),
+        ),
         content: const Text(
           "Deseja realmente finalizar a partida?",
           style: TextStyle(color: Colors.white70),
@@ -241,12 +276,7 @@ Future<void> _loadMatchState() async {
       else
         scoreWhite = max(0, scoreWhite + delta);
     });
-
-    if (isMatchRunning && (scoreRed >= 3 || scoreWhite >= 3)) {
-      _requestStopMatch();
-    } else {
-      _saveMatchState();
-    }
+    _saveMatchState();
   }
 
   // --- TEAM MANAGEMENT LOGIC ---
@@ -261,10 +291,12 @@ Future<void> _loadMatchState() async {
       teamRed.clear();
       teamWhite.clear();
 
-      for (int i = 0; i < totalPlayers && pool.isNotEmpty; i++)
+      for (int i = 0; i < widget.totalPlayers && pool.isNotEmpty; i++) {
         teamRed.add(pool.removeAt(0));
-      for (int i = 0; i < totalPlayers && pool.isNotEmpty; i++)
+      }
+      for (int i = 0; i < widget.totalPlayers && pool.isNotEmpty; i++) {
         teamWhite.add(pool.removeAt(0));
+      }
     });
     _saveMatchState();
   }
@@ -281,9 +313,11 @@ Future<void> _loadMatchState() async {
         );
         return;
       }
-      if (target.length >= totalPlayers) {
+      if (target.length >= widget.totalPlayers) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("O time já está cheio (Máx 4)!")),
+          SnackBar(
+            content: Text("O time já está cheio (Máx ${widget.totalPlayers})!"),
+          ),
         );
         return;
       }
@@ -312,8 +346,7 @@ Future<void> _loadMatchState() async {
   }
 
   void _clearList() {
-    _matchTimer?.cancel(); // FIX: Kill any ghost timer running in background
-
+    _matchTimer?.cancel();
     setState(() {
       presentPlayers.clear();
       teamRed.clear();
@@ -329,6 +362,63 @@ Future<void> _loadMatchState() async {
     _saveMatchState();
   }
 
+  // --- NEW: GOALKEEPER SELECTION LOGIC ---
+  void _showGoalkeeperSelectionDialog(
+    bool isRedTeam,
+    Function(Map<String, dynamic>) onSelected,
+  ) {
+    // Find all players who are in the arrival list but NOT in the line teams
+    final waiting = presentPlayers.where((p) {
+      final n = p['name'];
+      bool inRed = teamRed.any((t) => t['name'] == n);
+      bool inWhite = teamWhite.any((t) => t['name'] == n);
+      return !inRed && !inWhite;
+    }).toList();
+
+    if (waiting.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Não há jogadores de fora para selecionar como goleiro!",
+          ),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.headerBlue,
+        title: const Text(
+          "Selecione o Goleiro",
+          style: TextStyle(
+            color: Colors.orangeAccent,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: waiting.length,
+            itemBuilder: (c, i) => ListTile(
+              leading: const Icon(Icons.sports_handball, color: Colors.white54),
+              title: Text(
+                waiting[i]['name'],
+                style: const TextStyle(color: AppColors.textWhite),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                onSelected(waiting[i]);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- UI BUILDERS ---
 
   @override
@@ -337,10 +427,10 @@ Future<void> _loadMatchState() async {
       backgroundColor: AppColors.deepBlue,
       appBar: AppBar(
         backgroundColor: AppColors.headerBlue,
-        iconTheme: IconThemeData(color: AppColors.textWhite),
+        iconTheme: const IconThemeData(color: AppColors.textWhite),
         title: Text(
           widget.tournamentName,
-          style: TextStyle(color: AppColors.textWhite),
+          style: const TextStyle(color: AppColors.textWhite),
         ),
         centerTitle: true,
         elevation: 0,
@@ -351,7 +441,10 @@ Future<void> _loadMatchState() async {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const RankingScreen(tournamentId: widget.tournamentId,)),
+                MaterialPageRoute(
+                  builder: (context) =>
+                      RankingScreen(tournamentId: widget.tournamentId),
+                ),
               );
             },
           ),
@@ -374,7 +467,6 @@ Future<void> _loadMatchState() async {
             onStop: _requestStopMatch,
           ),
 
-          // --- NEW: GOAL SCORERS LIST ---
           _buildGoalScorers(),
 
           Container(
@@ -407,7 +499,7 @@ Future<void> _loadMatchState() async {
           ? FloatingActionButton(
               backgroundColor: AppColors.accentBlue,
               onPressed: _showActionSheet,
-              child: Icon(Icons.add, color: AppColors.textWhite),
+              child: const Icon(Icons.add, color: AppColors.textWhite),
             )
           : null,
     );
@@ -445,7 +537,6 @@ Future<void> _loadMatchState() async {
         }
       } else if (ev['type'] == 'own_goal') {
         if (ev['team'] == 'Vermelho') {
-          // Red scored own goal -> goes to White column
           whiteScorers.add(
             Text(
               "⚽ ${ev['player']} (GC) (${ev['time']})",
@@ -457,7 +548,6 @@ Future<void> _loadMatchState() async {
             ),
           );
         } else {
-          // White scored own goal -> goes to Red column
           redScorers.add(
             Text(
               "⚽ ${ev['player']} (GC) (${ev['time']})",
@@ -476,7 +566,7 @@ Future<void> _loadMatchState() async {
       return const SizedBox.shrink();
 
     return Container(
-      color: AppColors.headerBlue,
+      color: AppColors.deepBlue,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,30 +623,24 @@ Future<void> _loadMatchState() async {
               ),
               title: Row(
                 children: [
-                  // Show stars if the rating exists
-                  // Player Name
-                  Expanded(
-                    child: Text(
-                      presentPlayers[i]['name'],
-                      style: const TextStyle(color: AppColors.textWhite),
-                      overflow: TextOverflow
-                          .ellipsis, // Prevents text overflow errors
-                    ),
-                  ),
-
                   if (presentPlayers[i]['rating'] != null) ...[
                     RatingBarIndicator(
                       rating: (presentPlayers[i]['rating'] as num).toDouble(),
                       itemBuilder: (context, index) =>
                           const Icon(Icons.star, color: Colors.amber),
-                      itemCount: 5,
+                      itemCount: widget.totalPlayers,
                       itemSize: 14.0,
                       unratedColor: Colors.white24,
                     ),
-                    const SizedBox(
-                      width: 8,
-                    ), // Small space between stars and name
+                    const SizedBox(width: 8),
                   ],
+                  Expanded(
+                    child: Text(
+                      presentPlayers[i]['name'],
+                      style: const TextStyle(color: AppColors.textWhite),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
               trailing: const Icon(Icons.more_vert, color: Colors.white24),
@@ -576,7 +660,7 @@ Future<void> _loadMatchState() async {
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: totalPlayers, // Now it loops 4 times
+            itemCount: widget.totalPlayers,
             itemBuilder: (context, index) {
               final redPlayer = (index < teamRed.length)
                   ? teamRed[index]
@@ -629,6 +713,108 @@ Future<void> _loadMatchState() async {
               );
             },
           ),
+
+          // --- NEW: GOALKEEPER BUTTONS ---
+          const SizedBox(height: 16),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    if (!isMatchRunning) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Inicie a partida primeiro!"),
+                        ),
+                      );
+                      return;
+                    }
+                    _showGoalkeeperSelectionDialog(true, (selectedGk) {
+                      _showInGameOptions(selectedGk, true);
+                    });
+                  },
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: AppColors.headerBlue,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.redAccent.withOpacity(0.5),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.sports_handball,
+                          color: Colors.orangeAccent,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          "Goleiro",
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    if (!isMatchRunning) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Inicie a partida primeiro!"),
+                        ),
+                      );
+                      return;
+                    }
+                    _showGoalkeeperSelectionDialog(false, (selectedGk) {
+                      _showInGameOptions(selectedGk, false);
+                    });
+                  },
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: AppColors.headerBlue,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.5)),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.sports_handball,
+                          color: Colors.orangeAccent,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          "Goleiro",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // -------------------------------
         ],
       ),
     );
@@ -678,9 +864,9 @@ Future<void> _loadMatchState() async {
         for (int index = 0; index < waiting.length; index++)
           WaitlistCard(
             key: ValueKey(waiting[index]['name']),
-            totalPlayers: totalPlayers,
             player: waiting[index],
             index: index,
+            totalPlayers: widget.totalPlayers,
             onTap: () => _showChegadaOptions(waiting[index]),
           ),
       ],
@@ -697,7 +883,7 @@ Future<void> _loadMatchState() async {
         children: [
           ListTile(
             leading: const Icon(Icons.shield, color: Colors.redAccent),
-            title: Text(
+            title: const Text(
               "Add Vermelho",
               style: TextStyle(color: AppColors.textWhite),
             ),
@@ -708,7 +894,7 @@ Future<void> _loadMatchState() async {
           ),
           ListTile(
             leading: const Icon(Icons.shield, color: Colors.white),
-            title: Text(
+            title: const Text(
               "Add Branco",
               style: TextStyle(color: AppColors.textWhite),
             ),
@@ -736,7 +922,10 @@ Future<void> _loadMatchState() async {
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: AppColors.headerBlue,
-        title: Text("Remover?", style: TextStyle(color: AppColors.textWhite)),
+        title: const Text(
+          "Remover?",
+          style: TextStyle(color: AppColors.textWhite),
+        ),
         content: Text(
           "Tirar ${player['name']} do time?",
           style: const TextStyle(color: Colors.white70),
@@ -769,7 +958,7 @@ Future<void> _loadMatchState() async {
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: AppColors.headerBlue,
-        title: Text(
+        title: const Text(
           "Desistência",
           style: TextStyle(color: AppColors.textWhite),
         ),
@@ -797,7 +986,7 @@ Future<void> _loadMatchState() async {
               });
               _saveMatchState();
               Navigator.pop(c);
-              Navigator.pop(context); // Close the BottomSheet too
+              Navigator.pop(context);
             },
           ),
         ],
@@ -851,7 +1040,7 @@ Future<void> _loadMatchState() async {
       builder: (c) => StatefulBuilder(
         builder: (c, st) => AlertDialog(
           backgroundColor: AppColors.headerBlue,
-          title: Text(
+          title: const Text(
             "Adicionar Jogadores",
             style: TextStyle(color: AppColors.textWhite),
           ),
@@ -873,7 +1062,7 @@ Future<void> _loadMatchState() async {
                       checkColor: AppColors.textWhite,
                       title: Text(
                         available[i]['name'],
-                        style: TextStyle(color: AppColors.textWhite),
+                        style: const TextStyle(color: AppColors.textWhite),
                       ),
                       value: tempSelected.contains(available[i]),
                       onChanged: (v) => st(
@@ -898,7 +1087,7 @@ Future<void> _loadMatchState() async {
                   _addPlayersToArrivalList(tempSelected);
                   Navigator.pop(c);
                 },
-                child: Text(
+                child: const Text(
                   "OK",
                   style: TextStyle(
                     color: AppColors.accentBlue,
@@ -920,7 +1109,7 @@ Future<void> _loadMatchState() async {
         children: [
           ListTile(
             leading: const Icon(Icons.person_add, color: Colors.greenAccent),
-            title: Text(
+            title: const Text(
               'Adicionar',
               style: TextStyle(color: AppColors.textWhite),
             ),
@@ -931,7 +1120,7 @@ Future<void> _loadMatchState() async {
           ),
           ListTile(
             leading: const Icon(Icons.shuffle, color: Colors.orangeAccent),
-            title: Text(
+            title: const Text(
               'Sortear Linha',
               style: TextStyle(color: AppColors.textWhite),
             ),
@@ -942,7 +1131,7 @@ Future<void> _loadMatchState() async {
           ),
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
-            title: Text(
+            title: const Text(
               'Limpar Tudo',
               style: TextStyle(color: AppColors.textWhite),
             ),
@@ -969,15 +1158,18 @@ Future<void> _loadMatchState() async {
       builder: (ctx) => SimpleDialog(
         backgroundColor: AppColors.headerBlue,
         title: const Text(
-          "Quem deu o passe?",
-          style: TextStyle(color: Colors.white),
+          "Assistência",
+          style: TextStyle(
+            color: AppColors.highlightBlue,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         children: [
           SimpleDialogOption(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
             child: const Text(
-              "Sem Assistência / Jogada Individual",
-              style: TextStyle(color: Colors.grey),
+              "Jogada Individual",
+              style: TextStyle(color: AppColors.textWhite, fontSize: 16),
             ),
             onPressed: () {
               Navigator.pop(ctx);
@@ -985,6 +1177,8 @@ Future<void> _loadMatchState() async {
             },
           ),
           const Divider(color: Colors.white12),
+
+          // Field Teammates
           ...teammates
               .map(
                 (teammate) => SimpleDialogOption(
@@ -994,7 +1188,10 @@ Future<void> _loadMatchState() async {
                   ),
                   child: Text(
                     teammate['name'],
-                    style: TextStyle(color: AppColors.textWhite, fontSize: 16),
+                    style: const TextStyle(
+                      color: AppColors.textWhite,
+                      fontSize: 16,
+                    ),
                   ),
                   onPressed: () {
                     Navigator.pop(ctx);
@@ -1008,6 +1205,43 @@ Future<void> _loadMatchState() async {
                 ),
               )
               .toList(),
+
+          // --- NEW: GOALKEEPER ASSIST OPTION ---
+          const Divider(color: Colors.white12),
+          SimpleDialogOption(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.sports_handball,
+                  color: AppColors.textWhite,
+                  size: 20,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  "Goleiro",
+                  style: TextStyle(
+                    color: AppColors.textWhite,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            onPressed: () {
+              Navigator.pop(ctx); // Close assist menu
+              // Open goalkeeper selection
+              _showGoalkeeperSelectionDialog(isRedTeam, (selectedGk) {
+                _registerEvent(
+                  "goal",
+                  player,
+                  isRedTeam,
+                  assist: selectedGk['name'],
+                );
+              });
+            },
+          ),
+          // ------------------------------------
         ],
       ),
     );
@@ -1050,22 +1284,23 @@ Future<void> _loadMatchState() async {
       });
     });
 
-    if (scoreRed >= 3 || scoreWhite >= 3) {
-      _handleAutomaticWin(scoreRed >= 3);
-    } else {
-      _saveMatchState();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Evento registrado!"),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
+    _saveMatchState();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Evento registrado!"),
+          duration: Duration(seconds: 1),
+        ),
+      );
     }
   }
 
   void _showInGameOptions(Map<String, dynamic> player, bool isRedTeam) {
+    // Determine if player is officially on the field (Not a Goalkeeper)
+    bool isLinePlayer =
+        teamRed.any((p) => p['name'] == player['name']) ||
+        teamWhite.any((p) => p['name'] == player['name']);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.deepBlue,
@@ -1084,7 +1319,7 @@ Future<void> _loadMatchState() async {
                 Icons.sports_soccer,
                 color: Colors.greenAccent,
               ),
-              title: Text(
+              title: const Text(
                 "Fez Gol",
                 style: TextStyle(color: AppColors.textWhite),
               ),
@@ -1095,7 +1330,7 @@ Future<void> _loadMatchState() async {
             ),
             ListTile(
               leading: const Icon(Icons.error_outline, color: Colors.redAccent),
-              title: Text(
+              title: const Text(
                 "Gol Contra",
                 style: TextStyle(color: AppColors.textWhite),
               ),
@@ -1106,7 +1341,7 @@ Future<void> _loadMatchState() async {
             ),
             ListTile(
               leading: const Icon(Icons.style, color: Colors.yellowAccent),
-              title: Text(
+              title: const Text(
                 "Cartão Amarelo",
                 style: TextStyle(color: AppColors.textWhite),
               ),
@@ -1117,7 +1352,7 @@ Future<void> _loadMatchState() async {
             ),
             ListTile(
               leading: const Icon(Icons.style, color: Colors.redAccent),
-              title: Text(
+              title: const Text(
                 "Cartão Vermelho",
                 style: TextStyle(color: AppColors.textWhite),
               ),
@@ -1126,18 +1361,22 @@ Future<void> _loadMatchState() async {
                 _registerEvent("red_card", player, isRedTeam);
               },
             ),
-            const Divider(color: Colors.white24),
-            ListTile(
-              leading: const Icon(Icons.person_remove, color: Colors.grey),
-              title: Text(
-                "Substituir / Remover",
-                style: TextStyle(color: AppColors.textWhite),
+
+            // Only allow "Substituir" for line players so we don't mess up the queue
+            if (isLinePlayer) ...[
+              const Divider(color: Colors.white24),
+              ListTile(
+                leading: const Icon(Icons.person_remove, color: Colors.grey),
+                title: const Text(
+                  "Substituir / Remover",
+                  style: TextStyle(color: AppColors.textWhite),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showRemovePopup(player);
+                },
               ),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showRemovePopup(player);
-              },
-            ),
+            ],
           ],
         );
       },
@@ -1155,16 +1394,35 @@ Future<void> _loadMatchState() async {
       "match_duration": _formatTime(totalSecondsElapsed),
       "scoreRed": scoreRed,
       "scoreWhite": scoreWhite,
-      "events": matchEvents,
-      "players": {"red": teamRed, "white": teamWhite},
+      "events": List.from(matchEvents),
+      "players": {"red": List.from(teamRed), "white": List.from(teamWhite)},
     };
 
     final prefs = await SharedPreferences.getInstance();
-    final String historyKey = 'match_history_${widget.tournamentId}'; // --- NEW ---
-    
-    List<dynamic> history = prefs.containsKey(historyKey) ? jsonDecode(prefs.getString(historyKey)!) : [];
+    final String historyKey = 'match_history_${widget.tournamentId}';
+    List<dynamic> history = [];
+
+    try {
+      if (prefs.containsKey(historyKey)) {
+        history = jsonDecode(prefs.getString(historyKey)!);
+      }
+    } catch (e) {
+      debugPrint("Corrupted history found. Wiping old history...");
+      history = [];
+    }
+
     history.add(matchRecord);
-    await prefs.setString(historyKey, jsonEncode(history)); // --- NEW ---
+    await prefs.setString(historyKey, jsonEncode(history));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Partida salva no Histórico!"),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
 
     List<Map<String, dynamic>> leavers = [];
     bool isTie = scoreRed == scoreWhite;
@@ -1172,11 +1430,64 @@ Future<void> _loadMatchState() async {
     if (!isTie) {
       bool redWon = scoreRed > scoreWhite;
       _playVictorySound();
-      if (redWon)
+
+      if (redWon) {
         leavers.addAll(teamWhite);
-      else
+      } else {
         leavers.addAll(teamRed);
-      _processMatchExit(leavers);
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.headerBlue,
+          title: const Text(
+            "Fim de Jogo!",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.emoji_events, color: Colors.amber, size: 60),
+              const SizedBox(height: 16),
+              Text(
+                redWon ? "Vitória do VERMELHO!" : "Vitória do BRANCO!",
+                style: TextStyle(
+                  color: redWon ? Colors.redAccent : AppColors.textWhite,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Placar Final: $scoreRed x $scoreWhite",
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _processMatchExit(leavers);
+              },
+              child: const Text(
+                "Avançar >>",
+                style: TextStyle(
+                  color: AppColors.accentBlue,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     } else {
       showDialog(
         context: context,
@@ -1185,7 +1496,7 @@ Future<void> _loadMatchState() async {
           backgroundColor: AppColors.headerBlue,
           title: const Text("Empate!", style: TextStyle(color: Colors.white)),
           content: const Text(
-            "Quem roda (sai)?",
+            "Quem sai?",
             style: TextStyle(color: Colors.white70),
           ),
           actions: [
@@ -1257,22 +1568,18 @@ Future<void> _loadMatchState() async {
 
       List<Map<String, dynamic>> pool = List.from(entering);
 
-      while (teamRed.length < totalPlayers && pool.isNotEmpty)
+      while (teamRed.length < widget.totalPlayers && pool.isNotEmpty)
         teamRed.add(pool.removeAt(0));
-      while (teamWhite.length < totalPlayers && pool.isNotEmpty)
+      while (teamWhite.length < widget.totalPlayers && pool.isNotEmpty)
         teamWhite.add(pool.removeAt(0));
 
-      // --- RESET MATCH DATA ---
       isMatchRunning = false;
       isOvertime = false;
       scoreRed = 0;
       scoreWhite = 0;
       matchEvents.clear();
-
-      // --- FIX: RESET THE TIMER HERE ---
       _secondsPlayedBeforePause = 0;
       _lastStartTime = null;
-      // ---------------------------------
 
       _saveMatchState();
       _showLeaversPopup(leavers, entering);
@@ -1341,73 +1648,6 @@ Future<void> _loadMatchState() async {
     }
   }
 
-  void _handleAutomaticWin(bool redWon) {
-    _matchTimer?.cancel(); // Stop timer immediately
-
-    // FIX: Properly freeze the time exactly when the 3rd goal happens
-    setState(() {
-      isMatchRunning = false;
-      if (_lastStartTime != null) {
-        _secondsPlayedBeforePause += DateTime.now()
-            .difference(_lastStartTime!)
-            .inSeconds;
-        _lastStartTime = null;
-      }
-    });
-
-    showDialog(
-      context: context,
-      barrierDismissible: false, // User must click button
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.headerBlue,
-        title: const Text(
-          "Fim de Jogo!",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.emoji_events, color: Colors.amber, size: 60),
-            const SizedBox(height: 16),
-            Text(
-              redWon ? "Vitória do VERMELHO!" : "Vitória do BRANCO!",
-              style: TextStyle(
-                color: redWon ? Colors.redAccent : AppColors.textWhite,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Placar Final: $scoreRed x $scoreWhite",
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx); // Close Win Dialog
-              _finishMatch(); // TRIGGER THE NEW FLOW
-            },
-            child: const Text(
-              "Finalizar e Salvar",
-              style: TextStyle(
-                color: AppColors.accentBlue,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showEnteringPlayersPopup(List<Map<String, dynamic>> entering) {
     if (entering.isEmpty) return;
 
@@ -1450,21 +1690,5 @@ Future<void> _loadMatchState() async {
         ],
       ),
     );
-  }
-
-  // --- NEW: Calculate Team Average Rating ---
-  double _calculateTeamRating(List<Map<String, dynamic>> team) {
-    if (team.isEmpty) return 0.0;
-
-    double totalStars = 0.0;
-    for (var player in team) {
-      // Safely get the rating, default to 0 if null
-      double rating = player['rating'] != null
-          ? (player['rating'] as num).toDouble()
-          : 0.0;
-      totalStars += rating;
-    }
-
-    return totalStars / team.length;
   }
 }

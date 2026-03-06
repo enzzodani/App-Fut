@@ -7,7 +7,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart'; // Add this to pubspec if missing: path_provider: ^2.1.2
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  final String tournamentId; // We need this to load the correct history
+
+  const HistoryScreen({super.key, required this.tournamentId});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -24,11 +26,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.containsKey('match_history')) {
+
+    final String historyKey = 'match_history_${widget.tournamentId}';
+
+    if (prefs.containsKey(historyKey)) {
       setState(() {
-        history = jsonDecode(
-          prefs.getString('match_history')!,
-        ).reversed.toList();
+        history = jsonDecode(prefs.getString(historyKey)!).reversed.toList();
       });
     }
   }
@@ -64,7 +67,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _clearHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('match_history');
+    final String historyKey = 'match_history_${widget.tournamentId}';
+    await prefs.remove(historyKey);
     setState(() {
       history = [];
     });
@@ -141,7 +145,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
-                          "Vermelho ",
+                          "Barcelona ",
                           style: TextStyle(
                             color: Colors.redAccent,
                             fontSize: 14,
@@ -156,7 +160,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                         ),
                         const Text(
-                          " Branco",
+                          " Real Madrid",
                           style: TextStyle(color: Colors.white, fontSize: 14),
                         ),
                       ],
@@ -214,8 +218,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
     );
   }
-   String _getEventDescription(Map<String, dynamic> event) {
 
+  String _getEventDescription(Map<String, dynamic> event) {
     if (event['type'] == 'goal') {
       // Check if assist exists and is not null
       if (event['assist'] != null && event['assist'].toString().isNotEmpty) {
@@ -228,12 +232,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (event['type'] == 'red_card') return "Cartão Vermelho";
     return "";
   }
-  
+
   Widget _getEventIcon(String type) {
-    if (type == 'goal') return const Icon(Icons.sports_soccer, color: Colors.greenAccent, size: 18);
-    if (type == 'own_goal') return const Icon(Icons.error_outline, color: Colors.redAccent, size: 18);
-    if (type == 'yellow_card') return const Icon(Icons.style, color: Colors.yellow, size: 18);
-    if (type == 'red_card') return const Icon(Icons.style, color: Colors.red, size: 18);
+    if (type == 'goal')
+      return const Icon(
+        Icons.sports_soccer,
+        color: Colors.greenAccent,
+        size: 18,
+      );
+    if (type == 'own_goal')
+      return const Icon(Icons.error_outline, color: Colors.redAccent, size: 18);
+    if (type == 'yellow_card')
+      return const Icon(Icons.style, color: Colors.yellow, size: 18);
+    if (type == 'red_card')
+      return const Icon(Icons.style, color: Colors.red, size: 18);
     return const Icon(Icons.circle, color: Colors.grey, size: 10);
   }
 }

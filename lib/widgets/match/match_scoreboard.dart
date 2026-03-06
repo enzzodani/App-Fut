@@ -69,8 +69,8 @@ class MatchScoreboard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   const TeamLogo(
-                    label: "Vermelho",
-                    assetPath: "assets/images/camisa_vermelha.png",
+                    label: "Barcelona",
+                    assetPath: "assets/images/vermelho.png",
                   ),
                   Row(
                     children: [
@@ -149,8 +149,8 @@ class MatchScoreboard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   const TeamLogo(
-                    label: "Branco",
-                    assetPath: "assets/images/camisa_branca.png",
+                    label: "Real Madrid",
+                    assetPath: "assets/images/branco.png",
                   ),
                   Row(
                     children: [

@@ -50,7 +50,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
   void _addNewPlayer(String name, double rating) {
     setState(() {
       players.add({
-        'name': name, 
+        'name': name,
         'position': '',
         'rating': rating, // Save the rating!
       });
@@ -94,7 +94,10 @@ class _PlayersScreenState extends State<PlayersScreen> {
                         borderSide: BorderSide(color: AppColors.accentBlue),
                       ),
                       focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: AppColors.accentBlue, width: 2),
+                        borderSide: BorderSide(
+                          color: AppColors.accentBlue,
+                          width: 2,
+                        ),
                       ),
                     ),
                   ),
@@ -112,10 +115,8 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     allowHalfRating: true,
                     itemCount: 5,
                     itemPadding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    itemBuilder: (context, _) => const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                    ),
+                    itemBuilder: (context, _) =>
+                        const Icon(Icons.star, color: Colors.amber),
                     onRatingUpdate: (rating) {
                       setStateDialog(() {
                         currentRating = rating; // Update rating when clicked
@@ -135,7 +136,10 @@ class _PlayersScreenState extends State<PlayersScreen> {
                 TextButton(
                   onPressed: () {
                     if (controller.text.isNotEmpty) {
-                      _addNewPlayer(controller.text, currentRating); // Pass rating here
+                      _addNewPlayer(
+                        controller.text,
+                        currentRating,
+                      ); // Pass rating here
                       Navigator.pop(context);
                     }
                   },
@@ -182,15 +186,17 @@ class _PlayersScreenState extends State<PlayersScreen> {
               ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
               itemCount: players.length,
               itemBuilder: (context, index) {
                 final player = players[index];
-                final String initial = player['name']!.substring(0, 1).toUpperCase();
+                final String initial = player['name']!
+                    .substring(0, 1)
+                    .toUpperCase();
 
                 // Safely get rating (in case older saved players don't have it)
-                final double playerRating = player['rating'] != null 
-                    ? (player['rating'] as num).toDouble() 
+                final double playerRating = player['rating'] != null
+                    ? (player['rating'] as num).toDouble()
                     : 0.0;
 
                 return Container(
@@ -227,7 +233,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                         fontSize: 16,
                       ),
                     ),
- 
+
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -235,10 +241,8 @@ class _PlayersScreenState extends State<PlayersScreen> {
                         if (playerRating > 0)
                           RatingBarIndicator(
                             rating: playerRating,
-                            itemBuilder: (context, index) => const Icon(
-                              Icons.star,
-                              color: Colors.amber,
-                            ),
+                            itemBuilder: (context, index) =>
+                                const Icon(Icons.star, color: Colors.amber),
                             itemCount: 5,
                             itemSize: 16.0,
                             unratedColor: Colors.white24,
