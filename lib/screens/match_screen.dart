@@ -17,12 +17,14 @@ class MatchScreen extends StatefulWidget {
   final String tournamentName;
   final String tournamentId;
   final int totalPlayers;
+  final String groupId;
 
   const MatchScreen({
     super.key,
     required this.tournamentName,
     required this.tournamentId,
     required this.totalPlayers,
+    required this.groupId,
   });
 
   @override
@@ -135,28 +137,32 @@ class _MatchScreenState extends State<MatchScreen>
     final prefs = await SharedPreferences.getInstance();
     final String id = widget.tournamentId;
 
-    final String? dbData = prefs.getString('players_key');
+    final String? dbData = prefs.getString('players_${widget.groupId}');
     if (dbData != null) {
       allSavedPlayers = List<Map<String, dynamic>>.from(jsonDecode(dbData));
     }
 
     setState(() {
-      if (prefs.containsKey('present_players_$id'))
+      if (prefs.containsKey('present_players_$id')) {
         presentPlayers = List<Map<String, dynamic>>.from(
           jsonDecode(prefs.getString('present_players_$id')!),
         );
-      if (prefs.containsKey('team_red_$id'))
+      }
+      if (prefs.containsKey('team_red_$id')) {
         teamRed = List<Map<String, dynamic>>.from(
           jsonDecode(prefs.getString('team_red_$id')!),
         );
-      if (prefs.containsKey('team_white_$id'))
+      }
+      if (prefs.containsKey('team_white_$id')) {
         teamWhite = List<Map<String, dynamic>>.from(
           jsonDecode(prefs.getString('team_white_$id')!),
         );
-      if (prefs.containsKey('match_events_$id'))
+      }
+      if (prefs.containsKey('match_events_$id')) {
         matchEvents = List<Map<String, dynamic>>.from(
           jsonDecode(prefs.getString('match_events_$id')!),
         );
+      }
 
       scoreRed = prefs.getInt('score_red_$id') ?? 0;
       scoreWhite = prefs.getInt('score_white_$id') ?? 0;
@@ -194,9 +200,9 @@ class _MatchScreenState extends State<MatchScreen>
 
     try {
       if (totalSecondsElapsed == 0) {
-        await _audioPlayer.play(AssetSource('audio/start.mp3'));
+        await _audioPlayer.play(AssetSource('audio/end.mp3'));
       } else {
-        await _audioPlayer.play(AssetSource('audio/start.mp3'));
+        await _audioPlayer.play(AssetSource('audio/end.mp3'));
       }
     } catch (e) {
       debugPrint("Audio error: $e");
@@ -434,21 +440,6 @@ class _MatchScreenState extends State<MatchScreen>
         ),
         centerTitle: true,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.leaderboard, color: Colors.amber),
-            tooltip: "Ranking",
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      RankingScreen(tournamentId: widget.tournamentId),
-                ),
-              );
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -614,33 +605,56 @@ class _MatchScreenState extends State<MatchScreen>
             decoration: BoxDecoration(
               color: AppColors.headerBlue,
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
             ),
             child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Colors.white10,
-                foregroundColor: AppColors.textWhite,
-                child: Text("${i + 1}º"),
+              // --- UPDATED: SHOW PLAYER ICON OR INITIAL ---
+              leading: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.deepBlue,
+                    backgroundImage: presentPlayers[i]['icon'] != null 
+                        ? AssetImage(presentPlayers[i]['icon']) 
+                        : null,
+                    child: presentPlayers[i]['icon'] == null 
+                        ? Text(
+                            presentPlayers[i]['name'][0].toUpperCase(), 
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                          ) 
+                        : null,
+                  ),
+                  // Small number showing their arrival position
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(color: AppColors.accentBlue, shape: BoxShape.circle),
+                    child: Text("${i + 1}", style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold)),
+                  )
+                ],
               ),
               title: Row(
                 children: [
-                  if (presentPlayers[i]['rating'] != null) ...[
-                    RatingBarIndicator(
-                      rating: (presentPlayers[i]['rating'] as num).toDouble(),
-                      itemBuilder: (context, index) =>
-                          const Icon(Icons.star, color: Colors.amber),
-                      itemCount: widget.totalPlayers,
-                      itemSize: 14.0,
-                      unratedColor: Colors.white24,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
                   Expanded(
                     child: Text(
                       presentPlayers[i]['name'],
-                      style: const TextStyle(color: AppColors.textWhite),
+                      style: const TextStyle(color: AppColors.textWhite, fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  // --- UPDATED: 10-POINT RATING BADGE ---
+                  if (presentPlayers[i]['rating'] != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.green.withOpacity(0.3))
+                      ),
+                      child: Text(
+                        (presentPlayers[i]['rating'] as num).toDouble().toStringAsFixed(1),
+                        style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ),
                 ],
               ),
               trailing: const Icon(Icons.more_vert, color: Colors.white24),
@@ -996,7 +1010,7 @@ class _MatchScreenState extends State<MatchScreen>
 
   void _showMultiSelectDialog() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? dbData = prefs.getString('players_key');
+    final String? dbData = prefs.getString('players_${widget.groupId}');
 
     if (dbData != null) {
       setState(() {
@@ -1257,7 +1271,7 @@ class _MatchScreenState extends State<MatchScreen>
       if (type == "goal")
         await _audioPlayer.play(AssetSource('audio/goal.mp3'));
       else if (type == "own_goal")
-        await _audioPlayer.play(AssetSource('audio/own_goal.mp3'));
+        await _audioPlayer.play(AssetSource('audio/goal.mp3'));
     } catch (e) {
       debugPrint("Audio error: $e");
     }

@@ -9,12 +9,14 @@ class TournamentScreen extends StatelessWidget {
   final String tournamentName;
   final String tournamentId;
   final int totalPlayers;
+  final String groupId; // NEW: Connects the tournament to a specific group
 
   const TournamentScreen({
     super.key,
     required this.tournamentId,
     required this.tournamentName,
     required this.totalPlayers,
+    required this.groupId,
   });
 
   @override
@@ -88,7 +90,9 @@ class TournamentScreen extends StatelessWidget {
                   if (item['title'] == 'Jogadores') {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (c) => const PlayersScreen()),
+                      MaterialPageRoute(
+                        builder: (c) => PlayersScreen(groupId: groupId),
+                      ),
                     );
                   } else if (item['title'] == 'Partidas') {
                     Navigator.push(
@@ -98,6 +102,7 @@ class TournamentScreen extends StatelessWidget {
                           tournamentName: tournamentName,
                           tournamentId: tournamentId,
                           totalPlayers: totalPlayers,
+                          groupId: groupId,
                         ),
                       ),
                     );
